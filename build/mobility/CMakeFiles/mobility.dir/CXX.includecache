@@ -1,0 +1,38 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/juan/rover_workspace/src/mobility/src/mobility.cpp
+ros/ros.h
+-
+angles/angles.h
+-
+random_numbers/random_numbers.h
+-
+tf/transform_datatypes.h
+-
+std_msgs/Int16.h
+-
+std_msgs/UInt8.h
+-
+std_msgs/String.h
+-
+sensor_msgs/Joy.h
+-
+sensor_msgs/Range.h
+-
+geometry_msgs/Pose2D.h
+-
+geometry_msgs/Twist.h
+-
+nav_msgs/Odometry.h
+-
+ros/ros.h
+-
+signal.h
+-
+
