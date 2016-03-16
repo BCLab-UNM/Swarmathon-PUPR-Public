@@ -7,9 +7,6 @@
 #include <std_msgs/Int16.h>
 #include <sensor_msgs/image_encodings.h>
 
-//Custom messages
-#include <shared_messages/TagsImage.h>
-
 //OpenCV headers
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -18,16 +15,16 @@
 
 //AprilTag headers
 #include "apriltag.h"
-#include "common/image_u8.h"
+#include "image_u8.h"
 #include "tag36h11.h"
 #include "tag36h10.h"
 #include "tag36artoolkit.h"
 #include "tag25h9.h"
 #include "tag25h7.h"
-#include "common/image_u8.h"
-#include "common/pnm.h"
-#include "common/zarray.h"
-#include "common/getopt.h"
+#include "image_u8.h"
+#include "pnm.h"
+#include "zarray.h"
+#include "getopt.h"
 
 using namespace std;
 
@@ -74,7 +71,7 @@ int main(int argc, char* argv[]) {
     image_transport::ImageTransport it(tNH);
     image_transport::Subscriber imgSubscribe = it.subscribe((publishedName + "/camera/image"), 2, targetDetect);
 
-    tagPublish = tNH.advertise<shared_messages::TagsImage>((publishedName + "/targets"), 2, true);
+    tagPublish = tNH.advertise<std_msgs::Int16>((publishedName + "/targets"), 2, true);
 
     ros::spin();
 
@@ -87,7 +84,7 @@ int main(int argc, char* argv[]) {
 void targetDetect(const sensor_msgs::ImageConstPtr& rawImage) {
 
     cv_bridge::CvImagePtr cvImage;
-    shared_messages::TagsImage tagDetected;
+    std_msgs::Int16 tagDetected;
 
 	//Convert from MONO8 to BGR8
 	//TODO: consider whether we should let the camera publish as BGR8 and skip this conversion
@@ -122,9 +119,8 @@ void targetDetect(const sensor_msgs::ImageConstPtr& rawImage) {
     if (zarray_size(detections) > 0) {
 	    apriltag_detection_t *det;
 	    zarray_get(detections, 0, &det); //use the first tag detected in the image
-	    tagDetected.tags.data.push_back(det->id);
-	    tagDetected.image = *rawImage;
-
+	    tagDetected.data = det->id;
+	
 	    //Publish detected tag
 	    tagPublish.publish(tagDetected);
 	}
@@ -138,7 +134,3 @@ image_u8_t *copy_image_data_into_u8_container(int width, int height, uint8_t *rg
     }
     return u8_image;
 }
-
-
-
-

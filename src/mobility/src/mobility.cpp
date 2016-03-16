@@ -25,7 +25,7 @@
 using namespace std;
 
 //Random number generator
-random_numbers::RandomNumberGenerator* rng;	
+random_numbers::RandomNumberGenerator* rng;
 
 //Mobility Logic Functions
 void setVelocity(double linearVel, double angularVel);
@@ -93,12 +93,12 @@ int main(int argc, char **argv) {
 
     rng = new random_numbers::RandomNumberGenerator(); //instantiate random number generator
     goalLocation.theta = rng->uniformReal(0, 2 * M_PI); //set initial random heading
-    
+
     targetDetected.data = -1; //initialize target detected
-    
+
     //select initial search position 50 cm from center (0,0)
-	goalLocation.x = 0.5 * cos(goalLocation.theta);
-	goalLocation.y = 0.5 * sin(goalLocation.theta);
+    goalLocation.x = 2 * cos(goalLocation.theta);
+    goalLocation.y = 2 * sin(goalLocation.theta);
 
     if (argc >= 2) {
         publishedName = argv[1];
@@ -131,99 +131,100 @@ int main(int argc, char **argv) {
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     killSwitchTimer = mNH.createTimer(ros::Duration(killSwitchTimeout), killSwitchTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
-    
+
     ros::spin();
-    
+
     return EXIT_SUCCESS;
 }
 
 void mobilityStateMachine(const ros::TimerEvent&) {
     std_msgs::String stateMachineMsg;
-    
+
     if (currentMode == 2 || currentMode == 3) { //Robot is in automode
 
-		switch(stateMachineState) {
-			
-			//Select rotation or translation based on required adjustment
-			//If no adjustment needed, select new goal
-			case STATE_MACHINE_TRANSFORM: {
-				stateMachineMsg.data = "TRANSFORMING";
-				//If angle between current and goal is significant
-				if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > 0.1) {
-					stateMachineState = STATE_MACHINE_ROTATE; //rotate
-				}
-				//If goal has not yet been reached
-				else if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_2) {
-					stateMachineState = STATE_MACHINE_TRANSLATE; //translate
-				}
-				//If returning with a target
-				else if (targetDetected.data != -1) {
-					//If goal has not yet been reached
-					if (hypot(0.0 - currentLocation.x, 0.0 - currentLocation.y) > 0.5) {
-				        //set angle to center as goal heading
-						goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
-						
-						//set center as goal position
-						goalLocation.x = 0.0;
-						goalLocation.y = 0.0;
-					}
-					//Otherwise, reset target and select new random uniform heading
-					else {
-						targetDetected.data = -1;
-						goalLocation.theta = rng->uniformReal(0, 2 * M_PI);
-					}
-				}
-				//Otherwise, assign a new goal
-				else {
-					 //select new heading from Gaussian distribution around current heading
-					goalLocation.theta = rng->gaussian(currentLocation.theta, 0.25);
-					
-					//select new position 50 cm from current location
-					goalLocation.x = currentLocation.x + (0.5 * cos(goalLocation.theta));
-					goalLocation.y = currentLocation.y + (0.5 * sin(goalLocation.theta));
-				}
-				
-				//Purposefully fall through to next case without breaking
-			}
-			
-			//Calculate angle between currentLocation.theta and goalLocation.theta
-			//Rotate left or right depending on sign of angle
-			//Stay in this state until angle is minimized
-			case STATE_MACHINE_ROTATE: {
-				stateMachineMsg.data = "ROTATING";
-			    if (angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta) > 0.1) {
-					setVelocity(0.0, 0.2); //rotate left
-			    }
-			    else if (angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta) < -0.1) {
-					setVelocity(0.0, -0.2); //rotate right
-				}
-				else {
-					setVelocity(0.0, 0.0); //stop
-					stateMachineState = STATE_MACHINE_TRANSLATE; //move to translate step
-				}
-			    break;
-			}
-			
-			//Calculate angle between currentLocation.x/y and goalLocation.x/y
-			//Drive forward
-			//Stay in this state until angle is at least PI/2
-			case STATE_MACHINE_TRANSLATE: {
-				stateMachineMsg.data = "TRANSLATING";
-				if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_2) {
-					setVelocity(0.3, 0.0);
-				}
-				else {
-					setVelocity(0.0, 0.0); //stop
-					stateMachineState = STATE_MACHINE_TRANSFORM; //move back to transform step
-				}
-			    break;
-			}
-		
-			default: {
-			    break;
-			}
-		}
-	}
+        switch(stateMachineState) {
+
+            //Select rotation or translation based on required adjustment
+            //If no adjustment needed, select new goal
+            case STATE_MACHINE_TRANSFORM: {
+                stateMachineMsg.data = "TRANSFORMING";
+                //If angle between current and goal is significant
+                if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > 0.1) {
+                    stateMachineState = STATE_MACHINE_ROTATE; //rotate
+                }
+                //If goal has not yet been reached
+                else if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_4) {
+                    stateMachineState = STATE_MACHINE_TRANSLATE; //translate
+                }
+                //If returning with a target
+                else if (targetDetected.data != -1) {
+                    //If goal has not yet been reached
+                    if (hypot(0.0 - currentLocation.x, 0.0 - currentLocation.y) > 0.5) {
+                        //set angle to center as goal heading
+                        goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
+
+                        //set center as goal position
+                        setVelocity(0.3,0.0);
+                        goalLocation.x = 0.0;
+                        goalLocation.y = 0.0;
+                    }
+                    //Otherwise, reset target and select new random uniform heading
+                    else {
+                        targetDetected.data = -1;
+                        goalLocation.theta = rng->uniformReal(0, 2 * M_PI);
+                    }
+                }
+                //Otherwise, assign a new goal
+                else {
+                     //select new heading from Gaussian distribution around current heading
+                    goalLocation.theta = rng->gaussian(currentLocation.theta, 0.25);
+
+                    //select new position 50 cm from current location
+                    goalLocation.x = currentLocation.x + (0.8 * cos(goalLocation.theta));
+                    goalLocation.y = currentLocation.y + (0.8 * sin(goalLocation.theta));
+                }
+
+                //Purposefully fall through to next case without breaking
+            }
+
+            //Calculate angle between currentLocation.theta and goalLocation.theta
+            //Rotate left or right depending on sign of angle
+            //Stay in this state until angle is minimized
+            case STATE_MACHINE_ROTATE: {
+                stateMachineMsg.data = "ROTATING";
+                if (angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta) > 0.1) {
+                    setVelocity(0.2, 0.4); //rotate left
+                }
+                else if (angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta) < -0.1) {
+                    setVelocity(0.2, -0.4); //rotate right
+                }
+                else {
+                    setVelocity(0.0, 0.0); //stop
+                    stateMachineState = STATE_MACHINE_TRANSLATE; //move to translate step
+                }
+                break;
+            }
+
+            //Calculate angle between currentLocation.x/y and goalLocation.x/y
+            //Drive forward
+            //Stay in this state until angle is at least PI/2
+            case STATE_MACHINE_TRANSLATE: {
+                stateMachineMsg.data = "TRANSLATING";
+                if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_4) {
+                    setVelocity(0.2, 0.3);
+                }
+                else {
+                    setVelocity(0.0, 0.0); //stop
+                    stateMachineState = STATE_MACHINE_TRANSFORM; //move back to transform step
+                }
+                break;
+            }
+
+            default: {
+                break;
+            }
+        }
+    }
 
     else { // mode is NOT auto
 
@@ -238,14 +239,14 @@ void mobilityStateMachine(const ros::TimerEvent&) {
     }
 }
 
-void setVelocity(double linearVel, double angularVel) 
+void setVelocity(double linearVel, double angularVel)
 {
   // Stopping and starting the timer causes it to start counting from 0 again.
   // As long as this is called before the kill swith timer reaches killSwitchTimeout seconds
   // the rover's kill switch wont be called.
   //killSwitchTimer.stop();
   //killSwitchTimer.start();
-  
+
   velocity.linear.x = linearVel * 1.5;
   velocity.angular.z = angularVel * 8; //scaling factor for sim; removed by aBridge node
   velocityPublish.publish(velocity);
@@ -257,87 +258,135 @@ void setVelocity(double linearVel, double angularVel)
 
 void targetHandler(const shared_messages::TagsImage::ConstPtr& message) {
 
-	//if this is the goal target
-	if (message->tags.data[0] == 256) {
-		//if we were returning with a target
-	    if (targetDetected.data != -1) {
-			//publish to scoring code
-			targetDropOffPublish.publish(message->image);
-			targetDetected.data = -1;
-	    }
-	}
+    //if this is the goal target
+    if (message->tags.data[0] == 256) {
+        //if we were returning with a target
+        if (targetDetected.data != -1) {
+            //publish to scoring code
+            targetDropOffPublish.publish(message->image);
+            targetDetected.data = -1;
+        }
+    }
 
-	//if target has not previously been detected 
-	else if (targetDetected.data == -1) {
+    //if target has not previously been detected
+    else if (targetDetected.data == -1) {
         targetDetected.data = message->tags.data[0];
-        
+
         //check if target has not yet been collected
-        if (!targetsCollected[targetDetected.data]) { 
-	        //set angle to center as goal heading
-			goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
-			
-			//set center as goal position
-			goalLocation.x = 0.0;
-			goalLocation.y = 0.0;
-			
-			//publish detected target
-			targetCollectedPublish.publish(targetDetected);
+        if (!targetsCollected[targetDetected.data]) {
+            //set angle to center as goal heading
+            goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
 
-			//publish to scoring code
-			targetPickUpPublish.publish(message->image);
+            //set center as goal position
+            goalLocation.x = 0.5*cos(M_PI_4);
+            goalLocation.y = 0.5*sin(M_PI_4);
 
-			//switch to transform state to trigger return to center
-			stateMachineState = STATE_MACHINE_TRANSFORM;
-		}
+            //publish detected target
+            targetCollectedPublish.publish(targetDetected);
+
+            //publish to scoring code
+            targetPickUpPublish.publish(message->image);
+
+            //switch to transform state to trigger return to center
+            stateMachineState = STATE_MACHINE_TRANSFORM;
+        }else
+            if(!targetsCollected[targetDetected.data] && hypot(0.0 - currentLocation.x, 0.0 - currentLocation.y) > 0.5 && currentLocation.x < 0 && currentLocation.y > 0 )
+            {
+                //set angle to center as goal heading
+                goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
+
+                //set center as goal position
+                goalLocation.x = 0.5*cos(3*M_PI_4);
+                goalLocation.y = 0.5*sin(3*M_PI_4);
+
+                //publish detected target
+                targetCollectedPublish.publish(targetDetected);
+
+                //switch to transform state to trigger return to center
+                stateMachineState = STATE_MACHINE_TRANSFORM;
+            }
+        else
+             if(!targetsCollected[targetDetected.data] && hypot(0.0 - currentLocation.x, 0.0 - currentLocation.y) > 0.5 && currentLocation.x < 0 && currentLocation.y < 0 )
+             {
+                    //set angle to center as goal heading
+                    goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
+
+                    //set center as goal position
+                    goalLocation.x = 0.5*cos(5*M_PI_4);
+                    goalLocation.y = 0.5*sin(5*M_PI_4);
+
+                    //publish detected target
+                    targetCollectedPublish.publish(targetDetected);
+
+                    //switch to transform state to trigger return to center
+                    stateMachineState = STATE_MACHINE_TRANSFORM;
+
+    }
+             else
+                 if(!targetsCollected[targetDetected.data] && hypot(0.0 - currentLocation.x, 0.0 - currentLocation.y) > 0.5 && currentLocation.x > 0 && currentLocation.y < 0 )
+                 {
+                     //set angle to center as goal heading
+                     goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
+
+                     //set center as goal position
+                     goalLocation.x = 0.5*cos(7*M_PI_4);
+                     goalLocation.y = 0.5*sin(7*M_PI_4);
+
+                     //publish detected target
+                     targetCollectedPublish.publish(targetDetected);
+
+                     //switch to transform state to trigger return to center
+                     stateMachineState = STATE_MACHINE_TRANSFORM;
+                 }
     }
 }
 
 void modeHandler(const std_msgs::UInt8::ConstPtr& message) {
-	currentMode = message->data;
-	setVelocity(0.0, 0.0);
+    currentMode = message->data;
+    setVelocity(0.0, 0.0);
 }
 
 void obstacleHandler(const std_msgs::UInt8::ConstPtr& message) {
-	if (message->data > 0) {
-		//obstacle on right side
-		if (message->data == 1) {
-			//select new heading 0.2 radians to the left
-			goalLocation.theta = currentLocation.theta + 0.2;
-		}
-		
-		//obstacle in front or on left side
-		else if (message->data == 2) {
-			//select new heading 0.2 radians to the right
-			goalLocation.theta = currentLocation.theta - 0.2;
-		}
-							
-		//select new position 50 cm from current location
-		goalLocation.x = currentLocation.x + (0.5 * cos(goalLocation.theta));
-		goalLocation.y = currentLocation.y + (0.5 * sin(goalLocation.theta));
-		
-		//switch to transform state to trigger collision avoidance
-		stateMachineState = STATE_MACHINE_TRANSFORM;
-	}
+    if (message->data > 0) {
+        //obstacle on right side
+        if (message->data == 1) {
+            //select new heading 0.2 radians to the left
+            goalLocation.theta = currentLocation.theta + 0.2;
+        }
+
+        //obstacle in front or on left side
+        else if (message->data == 2) {
+            //select new heading 0.2 radians to the right
+            goalLocation.theta = currentLocation.theta - 0.2;
+        }
+
+        //select new position 50 cm from current location
+        goalLocation.x = currentLocation.x + (0.8 * cos(goalLocation.theta));
+        goalLocation.y = currentLocation.y + (0.8 * sin(goalLocation.theta));
+
+        //switch to transform state to trigger collision avoidance
+        stateMachineState = STATE_MACHINE_TRANSFORM;
+    }
 }
 
 void odometryHandler(const nav_msgs::Odometry::ConstPtr& message) {
-	//Get (x,y) location directly from pose
-	currentLocation.x = message->pose.pose.position.x;
-	currentLocation.y = message->pose.pose.position.y;
-	
-	//Get theta rotation by converting quaternion orientation to pitch/roll/yaw
-	tf::Quaternion q(message->pose.pose.orientation.x, message->pose.pose.orientation.y, message->pose.pose.orientation.z, message->pose.pose.orientation.w);
-	tf::Matrix3x3 m(q);
-	double roll, pitch, yaw;
-	m.getRPY(roll, pitch, yaw);
-	currentLocation.theta = yaw;
+    //Get (x,y) location directly from pose
+    currentLocation.x = message->pose.pose.position.x;
+    currentLocation.y = message->pose.pose.position.y;
+
+    //Get theta rotation by converting quaternion orientation to pitch/roll/yaw
+    tf::Quaternion q(message->pose.pose.orientation.x, message->pose.pose.orientation.y, message->pose.pose.orientation.z, message->pose.pose.orientation.w);
+    tf::Matrix3x3 m(q);
+    double roll, pitch, yaw;
+    m.getRPY(roll, pitch, yaw);
+    currentLocation.theta = yaw;
 }
 
 void joyCmdHandler(const geometry_msgs::Twist::ConstPtr& message) {
-    if (currentMode == 0 || currentMode == 1) 
+    if (currentMode == 0 || currentMode == 1)
       {
-	setVelocity(message->linear.x, message->angular.z);
-      } 
+    setVelocity(message->linear.x, message->angular.z);
+      }
 }
 
 
@@ -352,14 +401,14 @@ void publishStatusTimerEventHandler(const ros::TimerEvent&)
 // Also might no longer be receiving manual movement commands so stop the rover.
 void killSwitchTimerEventHandler(const ros::TimerEvent& t)
 {
-  // No movement commands for killSwitchTime seconds so stop the rover 
+  // No movement commands for killSwitchTime seconds so stop the rover
   setVelocity(0,0);
   double current_time = ros::Time::now().toSec();
   ROS_INFO("In mobility.cpp:: killSwitchTimerEventHander(): Movement input timeout. Stopping the rover at %6.4f.", current_time);
 }
 
 void targetsCollectedHandler(const std_msgs::Int16::ConstPtr& message) {
-	targetsCollected[message->data] = 1;
+    targetsCollected[message->data] = 1;
 }
 
 void sigintEventHandler(int sig)
