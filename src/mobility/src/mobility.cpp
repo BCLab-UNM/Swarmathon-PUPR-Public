@@ -1,3 +1,4 @@
+﻿
 #include <ros/ros.h>
 
 //ROS libraries
@@ -41,9 +42,9 @@ std_msgs::Int16 targetDetected; //ID of the detected target
 bool targetsCollected [256] = {0}; //array of booleans indicating whether each target ID has been found
 
 // state machine states
-#define STATE_MACHINE_TRANSFORM	0
-#define STATE_MACHINE_ROTATE	1
-#define STATE_MACHINE_TRANSLATE	2
+#define STATE_MACHINE_TRANSFORM 0
+#define STATE_MACHINE_ROTATE    1
+#define STATE_MACHINE_TRANSLATE 2
 int stateMachineState = STATE_MACHINE_TRANSFORM;
 
 geometry_msgs::Twist velocity;
@@ -85,7 +86,6 @@ void mobilityStateMachine(const ros::TimerEvent&);
 void publishStatusTimerEventHandler(const ros::TimerEvent& event);
 void targetsCollectedHandler(const std_msgs::Int16::ConstPtr& message);
 void killSwitchTimerEventHandler(const ros::TimerEvent& event);
-void targetCL(double a,double b);
 
 int main(int argc, char **argv) {
 
@@ -98,8 +98,8 @@ int main(int argc, char **argv) {
     targetDetected.data = -1; //initialize target detected
 
     //select initial search position 50 cm from center (0,0)
-    goalLocation.x = 0.5 * cos(goalLocation.theta);
-    goalLocation.y = 0.5 * sin(goalLocation.theta);
+    goalLocation.x = 1.0 * cos(goalLocation.theta);
+    goalLocation.y = 1.0 * sin(goalLocation.theta);
 
     if (argc >= 2) {
         publishedName = argv[1];
@@ -154,12 +154,11 @@ void mobilityStateMachine(const ros::TimerEvent&) {
                     stateMachineState = STATE_MACHINE_ROTATE; //rotate
                 }
                 //If goal has not yet been reached
-                else if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_4) {
+                else if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_2) {
                     stateMachineState = STATE_MACHINE_TRANSLATE; //translate
                 }
                 //If returning with a target
                 else if (targetDetected.data != -1) {
-
                     //If goal has not yet been reached
                     if (hypot(0.0 - currentLocation.x, 0.0 - currentLocation.y) > 0.5) {
                         //set angle to center as goal heading
@@ -168,24 +167,21 @@ void mobilityStateMachine(const ros::TimerEvent&) {
                         //set center as goal position
                         goalLocation.x = 0.0;
                         goalLocation.y = 0.0;
-                        targetCL(currentLocation.x,currentLocation.y);
                     }
                     //Otherwise, reset target and select new random uniform heading
                     else {
                         targetDetected.data = -1;
                         goalLocation.theta = rng->uniformReal(0, 2 * M_PI);
-                       targetCL(currentLocation.x,currentLocation.y);
                     }
                 }
                 //Otherwise, assign a new goal
                 else {
                      //select new heading from Gaussian distribution around current heading
-                    goalLocation.theta = rng->gaussian(currentLocation.theta, 0.25);//0.25
+                    goalLocation.theta = rng->gaussian(currentLocation.theta, 0.25);
 
                     //select new position 50 cm from current location
-                   goalLocation.x = currentLocation.x + (0.5 * cos(goalLocation.theta));
-                   goalLocation.y = currentLocation.y + (0.5 * sin(goalLocation.theta));
-                    //targetCL(currentLocation.x,currentLocation.y);
+                    goalLocation.x = currentLocation.x + (0.5 * cos(goalLocation.theta));
+                    goalLocation.y = currentLocation.y + (0.5 * sin(goalLocation.theta));
                 }
 
                 //Purposefully fall through to next case without breaking
@@ -198,8 +194,9 @@ void mobilityStateMachine(const ros::TimerEvent&) {
                 stateMachineMsg.data = "ROTATING";
                 if (angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta) > 0.1) {
 
-                    if(targetDetected.data != -1){
-                        setVelocity(0.0,0.5);
+                    if(targetDetected.data != -1)
+                    {
+                       setVelocity(0.0, 0.2);
                     }
                     else
                     {
@@ -208,14 +205,16 @@ void mobilityStateMachine(const ros::TimerEvent&) {
                 }
                 else if (angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta) < -0.1) {
 
-
-                    if(targetDetected.data != -1){
-                        setVelocity(0.0,-0.4);
-                    }
-                    else{
-                    setVelocity(0.1, -0.3); //rotate right
-                    }
+                    if(targetDetected.data != -1)
+                    {
+                    setVelocity(0.0, -0.2); //rotate right
                 }
+
+                    else
+                    {
+                        setVelocity(0.1, -0.3); //rotate right
+                    }
+}
                 else {
                     setVelocity(0.0, 0.0); //stop
                     stateMachineState = STATE_MACHINE_TRANSLATE; //move to translate step
@@ -228,36 +227,37 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             //Stay in this state until angle is at least PI/2
             case STATE_MACHINE_TRANSLATE: {
                 stateMachineMsg.data = "TRANSLATING";
-                if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_4) {
-                    setVelocity(0.4, 0.2);
-
-                    if (targetDetected.data != -1)
+                if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_2) {
+                    if(targetDetected.data != -1)
                     {
-                        setVelocity(0.4,0.0);
-                    }
 
-                    else {
-                        setVelocity(0.4,0.2);
+                            setVelocity(0.4, 0.0);
                     }
+                    else{
 
+                      setVelocity(0.3, 0.5);
+                    }
                 }
-
-
-
-
                 else {
                     setVelocity(0.0, 0.0); //stop
                     stateMachineState = STATE_MACHINE_TRANSFORM; //move back to transform step
                 }
+
                 break;
-}
+                    }
+
 
             default: {
                 break;
-
         }
     }
-}
+    }
+
+
+
+
+
+
     else { // mode is NOT auto
 
         // publish current state for the operator to see
@@ -276,8 +276,8 @@ void setVelocity(double linearVel, double angularVel)
   // Stopping and starting the timer causes it to start counting from 0 again.
   // As long as this is called before the kill swith timer reaches killSwitchTimeout seconds
   // the rover's kill switch wont be called.
-  //killSwitchTimer.stop();
-  //killSwitchTimer.start();
+  killSwitchTimer.stop();
+  killSwitchTimer.start();
 
   velocity.linear.x = linearVel * 1.5;
   velocity.angular.z = angularVel * 8; //scaling factor for sim; removed by aBridge node
@@ -302,26 +302,18 @@ void targetHandler(const shared_messages::TagsImage::ConstPtr& message) {
 
     //if target has not previously been detected
     else if (targetDetected.data == -1) {
-        targetDetected.data = message->tags.data[0];
 
         //check if target has not yet been collected
-        if (!targetsCollected[targetDetected.data]) {
+        if (!targetsCollected[message->tags.data[0]]) {
+            //copy target ID to class variable
+            targetDetected.data = message->tags.data[0];
+
             //set angle to center as goal heading
             goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
 
             //set center as goal position
             goalLocation.x = 0.0;
             goalLocation.y = 0.0;
-
-            /*if(goalLocation.x == 0 && goalLocation.y == 0) {
-            stateMachineState = STATE_MACHINE_TRANSLATE;
-            goalLocation.x = currentLocation.x;
-            goalLocation.y = currentLocation.y;*/
-            //goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);}
-
-
-
-
 
             //publish detected target
             targetCollectedPublish.publish(targetDetected);
@@ -345,18 +337,24 @@ void obstacleHandler(const std_msgs::UInt8::ConstPtr& message) {
         //obstacle on right side
         if (message->data == 1) {
             //select new heading 0.2 radians to the left
-            goalLocation.theta = currentLocation.theta + 0.2;
+            goalLocation.theta = currentLocation.theta + 0.4;
+
+            goalLocation.x = currentLocation.x + (1.0 * cos(goalLocation.theta));
+            goalLocation.y = currentLocation.y + (1.0 * sin(goalLocation.theta));
         }
 
         //obstacle in front or on left side
         else if (message->data == 2) {
             //select new heading 0.2 radians to the right
-            goalLocation.theta = currentLocation.theta - 0.2;
+            goalLocation.theta = currentLocation.theta - 0.4;
+
+            goalLocation.x = currentLocation.x + (1.0 * cos(goalLocation.theta  + M_PI_4)) ;
+            goalLocation.y = currentLocation.y + (1.0 * sin(goalLocation.theta - M_PI_4)) ;
         }
 
         //select new position 50 cm from current location
-        goalLocation.x = currentLocation.x + (0.5 * cos(goalLocation.theta));
-        goalLocation.y = currentLocation.y + (0.5 * sin(goalLocation.theta));
+       /* goalLocation.x = currentLocation.x + (1.0 * cos(goalLocation.theta));
+        goalLocation.y = currentLocation.y + (1.0 * sin(goalLocation.theta));*/
 
         //switch to transform state to trigger collision avoidance
         stateMachineState = STATE_MACHINE_TRANSFORM;
@@ -382,26 +380,7 @@ void joyCmdHandler(const geometry_msgs::Twist::ConstPtr& message) {
     setVelocity(message->linear.x, message->angular.z);
       }
 }
- void targetCL(double a,double b){
 
-     if (targetDetected.data != -1 && goalLocation.theta != M_PI + atan2(currentLocation.y, currentLocation.x)){
-         a=currentLocation.x;
-         b=currentLocation.y;
-     }
-
-     if (!targetsCollected[targetDetected.data]){
-         goalLocation.theta = M_PI + atan2(currentLocation.y, currentLocation.x);
-         goalLocation.x=0.0;
-         goalLocation.y=0.0;
-     }
-     else
-         if (targetDetected.data == -1){
-             goalLocation.theta = atan2(b,a);
-             goalLocation.x=a;
-             goalLocation.y=b;
-         }
-
- }
 
 void publishStatusTimerEventHandler(const ros::TimerEvent&)
 {
