@@ -385,7 +385,7 @@ void joyCmdHandler(const geometry_msgs::Twist::ConstPtr& message) {
 void publishStatusTimerEventHandler(const ros::TimerEvent&)
 {
   std_msgs::String msg;
-  msg.data = "online";
+  msg.data = "PUPR";
   status_publisher.publish(msg);
 }
 
